@@ -14,6 +14,7 @@ namespace Symfony\Component\Messenger\Transport\Doctrine;
 use Doctrine\DBAL\DBALException;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Exception\TransportException;
+use Symfony\Component\Messenger\Stamp\ControlledDelayStamp;
 use Symfony\Component\Messenger\Stamp\DelayStamp;
 use Symfony\Component\Messenger\Stamp\TransportMessageIdStamp;
 use Symfony\Component\Messenger\Transport\Sender\SenderInterface;
@@ -45,10 +46,21 @@ class DoctrineSender implements SenderInterface
 
         /** @var DelayStamp|null $delayStamp */
         $delayStamp = $envelope->last(DelayStamp::class);
-        $delay = null !== $delayStamp ? $delayStamp->getDelay() : 0;
+        /** @var ControlledDelayStamp|null $controlledDelayStamp */
+        $controlledDelayStamp = $envelope->last(ControlledDelayStamp::class);
+
+        $availableAt = null;
+
+        if (null !== $delayStamp) {
+            $availableAt = (new \DateTime())->modify(sprintf('+%d seconds', $delayStamp->getDelay() / 1000));
+        }
+
+        if (null === $delayStamp && null !== $controlledDelayStamp) {
+            $availableAt = $controlledDelayStamp->getProcessAt();
+        }
 
         try {
-            $id = $this->connection->send($encodedMessage['body'], $encodedMessage['headers'] ?? [], $delay);
+            $id = $this->connection->send($encodedMessage['body'], $encodedMessage['headers'] ?? [], $availableAt);
         } catch (DBALException $exception) {
             throw new TransportException($exception->getMessage(), 0, $exception);
         }

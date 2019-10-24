@@ -99,16 +99,16 @@ class Connection
     }
 
     /**
-     * @param int $delay The delay in milliseconds
+     * @param \DateTimeInterface|null $availableAt The time when the message should be available for worker
      *
      * @return string The inserted id
      *
      * @throws \Doctrine\DBAL\DBALException
      */
-    public function send(string $body, array $headers, int $delay = 0): string
+    public function send(string $body, array $headers, ?\DateTimeInterface $availableAt = null): string
     {
         $now = new \DateTime();
-        $availableAt = (clone $now)->modify(sprintf('+%d seconds', $delay / 1000));
+        $availableAt = null === $availableAt ? clone $now : $availableAt;
 
         $queryBuilder = $this->driverConnection->createQueryBuilder()
             ->insert($this->configuration['table_name'])
